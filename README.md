@@ -31,7 +31,7 @@ For admins, or those with a specific permission, it will locate all cameras on t
   "userRange": 200.0,
   "adminRange": 4000.0,
   "userMapWide": false,
-  "useFriends": true,
+  "useFriends": false,
   "useClans": false,
   "useTeams": false
 }
