@@ -14,6 +14,11 @@ If support for Friends, Clans, or Rust Teams is enabled, it will find their frie
 
 For admins, or those with a specific permission, it will locate all cameras on the map (default 4000m).  It does not add these cameras and is merely for reference.
 
+### Commands
+
+- `/cctv` - When in range (3m) of a Computer Station, will add any local cameras in range (200m) of the station that the user owns
+- `/cctvlist` - Admin command to list ALL cameras
+
 ### Permission
 
 - `cctvcontrol.use` = Allows use of the /cctv command to add cameras to a computer station.
