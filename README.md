@@ -1,5 +1,5 @@
 # CCTVControl
-Current version 1.0.0
+Current version 1.0.0 (very much a work in progress as of March 2020)
 
 Uses Friends, Clans, Rust Teams
 
