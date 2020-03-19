@@ -14,7 +14,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.1")]
+    [Info("CCTVControl", "RFC1920", "1.0.2")]
     [Description("Oxide Plugin")]
     class CCTVControl : RustPlugin
     {
@@ -57,6 +57,8 @@ namespace Oxide.Plugins
                 ["foundCameras"] = "Found Cameras:",
                 ["cameraexists"] = "Camera {0} already in station",
                 ["ownedby"] = " owned by ",
+                ["server"] = "Server",
+                ["unknown"] = "Unknown",
                 ["foundStation"] = "Found ComputerStation...",
                 ["noStation"] = "No ComputerStation found...",
                 ["helptext1"] = "CCTV Control Instructions:",
@@ -181,7 +183,7 @@ namespace Oxide.Plugins
                         List<CCTV_RC> cameras = new List<CCTV_RC>();
         
                         float range = userRange;
-                        if(userMapWide) range = mapSize;
+                        if(userMapWide || iplayer.HasPermission(permCCTVAdmin)) range = mapSize;
         
                         Vis.Entities<CCTV_RC>(player.transform.position, range, cameras);
                         List<string> foundCameras = new List<string>();
@@ -198,22 +200,22 @@ namespace Oxide.Plugins
         
                             if((ent.OwnerID.ToString() == iplayer.Id || IsFriend(player.userID, ent.OwnerID)) || iplayer.HasPermission(permCCTVAdmin))
                             {
-                                foundCameras.Add(cname);
                                 if(station.controlBookmarks.ContainsKey(cname))
                                 {
                                     Message(iplayer, "cameraexists", cname);
                                     continue;
                                 }
+                                foundCameras.Add(cname);
         
-                                string displayName = null;
-                                var pl = BasePlayer.Find(ent.OwnerID.ToString());
+                                string displayName = Lang("unknown");
                                 if(ent.OwnerID == 0)
                                 {
-                                    displayName = "Server";
+                                    displayName = Lang("server");
                                 }
                                 else
                                 {
-                                    displayName = pl.displayName;
+                                    var pl = BasePlayer.Find(ent.OwnerID.ToString());
+                                    if(pl != null) displayName = pl.displayName;
                                 }
         
                                 Message(iplayer, "foundCamera", cname, displayName);
