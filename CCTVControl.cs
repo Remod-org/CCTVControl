@@ -1,4 +1,4 @@
-//#define DEBUG
+#define DEBUG
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -14,8 +14,8 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.2")]
-    [Description("Oxide Plugin")]
+    [Info("CCTVControl", "RFC1920", "1.0.3")]
+    [Description("Allows players to add their local CCTV cameras in bulk to a Computer Station")]
     class CCTVControl : RustPlugin
     {
         #region vars
@@ -181,13 +181,16 @@ namespace Oxide.Plugins
                         foundS = true;
                         Message(iplayer, "foundStation");
                         List<CCTV_RC> cameras = new List<CCTV_RC>();
-        
+
                         float range = userRange;
                         if(userMapWide || iplayer.HasPermission(permCCTVAdmin)) range = mapSize;
-        
+
                         Vis.Entities<CCTV_RC>(player.transform.position, range, cameras);
                         List<string> foundCameras = new List<string>();
-        
+
+#if DEBUG
+                        Puts($"Searching for cameras over a {range.ToString()}m radius.");
+#endif
                         foreach(var camera in cameras)
                         {
                             var realcam = camera as IRemoteControllable;
@@ -197,7 +200,9 @@ namespace Oxide.Plugins
                             var cname = realcam.GetIdentifier();
                             if(cname == null) continue;
                             if(foundCameras.Contains(cname)) continue;
-        
+#if DEBUG
+                            Puts($"Found camera {cname}.");
+#endif
                             if((ent.OwnerID.ToString() == iplayer.Id || IsFriend(player.userID, ent.OwnerID)) || iplayer.HasPermission(permCCTVAdmin))
                             {
                                 if(station.controlBookmarks.ContainsKey(cname))
@@ -206,7 +211,7 @@ namespace Oxide.Plugins
                                     continue;
                                 }
                                 foundCameras.Add(cname);
-        
+
                                 string displayName = Lang("unknown");
                                 if(ent.OwnerID == 0)
                                 {
@@ -217,7 +222,7 @@ namespace Oxide.Plugins
                                     var pl = BasePlayer.Find(ent.OwnerID.ToString());
                                     if(pl != null) displayName = pl.displayName;
                                 }
-        
+
                                 Message(iplayer, "foundCamera", cname, displayName);
                                 AddCamera(player, station, cname);
                             }
@@ -241,7 +246,7 @@ namespace Oxide.Plugins
 
             if((iplayer.Object as BasePlayer) == null)
             {
-                Vis.Entities<CCTV_RC>(Vector3.zero, mapSize/2, cameras);
+                Vis.Entities<CCTV_RC>(Vector3.zero, mapSize, cameras);
                 Puts(Lang("foundCameras"));
                 foreach(var camera in cameras)
                 {
@@ -249,8 +254,10 @@ namespace Oxide.Plugins
                     if(realcam == null) continue;
                     var loc = realcam.GetEyes();
                     var ent = realcam.GetEnt();
+                    if(ent == null) continue;
                     var cname = realcam.GetIdentifier();
-                    if(foundCameras.Contains(cname) || cname == null) continue;
+                    if(cname == null) continue;
+                    if(foundCameras.Contains(cname)) continue;
                     foundCameras.Add(cname);
                     msg += cname + " @ " + loc.position.ToString() + Lang("ownedby") + ent.OwnerID.ToString() + "\n";
                 }
@@ -260,7 +267,7 @@ namespace Oxide.Plugins
             {
                 if(!iplayer.IsAdmin && !iplayer.HasPermission(permCCTVList)) return;
                 var player = iplayer.Object as BasePlayer;
-    
+
                 Vis.Entities<CCTV_RC>(player.transform.position, adminRange, cameras);
                 Message(iplayer, "foundCameras");
                 foreach(var camera in cameras)
@@ -269,8 +276,10 @@ namespace Oxide.Plugins
                     if(realcam == null) continue;
                     var loc = realcam.GetEyes();
                     var ent = realcam.GetEnt();
+                    if(ent == null) continue;
                     var cname = realcam.GetIdentifier();
-                    if(foundCameras.Contains(cname) || cname == null) continue;
+                    if(cname == null) continue;
+                    if(foundCameras.Contains(cname)) continue;
                     foundCameras.Add(cname);
                     msg += cname + " @ " + loc.position.ToString() + Lang("ownedby") + ent.OwnerID.ToString() + "\n";
                 }

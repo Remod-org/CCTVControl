@@ -1,5 +1,5 @@
 # CCTVControl
-Current version 1.0.1 [Download](https://code.remod.org/CCTVControl.cs)
+Current version 1.0.3 [Download](https://code.remod.org/CCTVControl.cs)
 
 Uses Friends, Clans, Rust Teams
 
