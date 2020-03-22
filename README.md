@@ -39,7 +39,8 @@ When you run /cctvlist from RCON, the plugin will do it's scan from the center o
   "userMapWide": false,
   "useFriends": false,
   "useClans": false,
-  "useTeams": false
+  "useTeams": false,
+  "blockServerCams": false
 }
 ```
 
@@ -48,5 +49,7 @@ Note that you can set the default search range for users and admins.
 You can also selectively enable support for Friends, Clans, and Rust Teams.
 
 If you wish, you can also enable a map-wide search for users to add their cameras.  This will cause the plugin to use the value for adminRange when the user is searching.  They will still be limited to adding cameras they or their friends own.
+
+If you set blockServerCams true, a user without the cctvcontrol.admin permission will not be able to add server/monument cameras in bulk.  There is currently no way to prevent them from adding them once mounted.  But, the plugin will remove them when they remount the station.
 
 If, however, the cctvcontrol.admin permission is set, the user will be able to add all cameras, regardless of owner.

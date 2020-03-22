@@ -14,7 +14,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.3")]
+    [Info("CCTVControl", "RFC1920", "1.0.4")]
     [Description("Allows players to add their local CCTV cameras in bulk to a Computer Station")]
     class CCTVControl : RustPlugin
     {
@@ -283,7 +283,7 @@ namespace Oxide.Plugins
                     foundCameras.Add(cname);
                     msg += cname + " @ " + loc.position.ToString() + Lang("ownedby") + ent.OwnerID.ToString() + "\n";
                 }
-                Message(iplayer, msg);
+                if(msg != null) Message(iplayer, msg);
             }
         }
 
