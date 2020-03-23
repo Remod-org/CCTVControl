@@ -1,4 +1,4 @@
-#define DEBUG
+//#define DEBUG
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -14,7 +14,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.4")]
+    [Info("CCTVControl", "RFC1920", "1.0.5")]
     [Description("Allows players to add their local CCTV cameras in bulk to a Computer Station")]
     class CCTVControl : RustPlugin
     {
@@ -33,6 +33,7 @@ namespace Oxide.Plugins
         bool useClans = false;
         bool useTeams = false;
         bool userMapWide = false;
+        bool blockServerCams = false;
         #endregion
 
         #region Message
@@ -85,6 +86,7 @@ namespace Oxide.Plugins
             useFriends = false;
             useClans = false;
             useTeams = false;
+            blockServerCams = false;
             LoadVariables();
         }
 
@@ -96,6 +98,7 @@ namespace Oxide.Plugins
             CheckCfg<bool>("useClans", ref useClans);
             CheckCfg<bool>("useTeams", ref useTeams);
             CheckCfg<bool>("userMapWide", ref userMapWide);
+            CheckCfg<bool>("blockServerCams", ref blockServerCams);
         }
 
         private void LoadVariables()
@@ -127,29 +130,51 @@ namespace Oxide.Plugins
                 Config[Key] = var;
             }
         }
-
-        object GetConfig(string menu, string datavalue, object defaultValue)
-        {
-            var data = Config[menu] as Dictionary<string, object>;
-            if(data == null)
-            {
-                data = new Dictionary<string, object>();
-                Config[menu] = data;
-                //Changed = true;
-            }
-
-            object value;
-            if(!data.TryGetValue(datavalue, out value))
-            {
-                value = defaultValue;
-                data[datavalue] = value;
-                //Changed = true;
-            }
-            return value;
-        }
         #endregion
 
         #region Main
+        void OnEntityMounted(BaseMountable mountable, BasePlayer player)
+        {
+            var station = mountable.GetComponentInParent<ComputerStation>() ?? null;
+            if(station != null && (blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
+            {
+#if DEBUG
+                Puts("OnEntityMounted: player mounted CS!");
+#endif
+                List<string> toremove = new List<string>();
+                foreach(KeyValuePair<string, uint> bm in station.controlBookmarks)
+                {
+                    var cament = BaseNetworkable.serverEntities.Find(bm.Value);
+                    var realcam = cament as IRemoteControllable;
+                    var ent = realcam.GetEnt();
+                    if(ent == null) continue;
+                    var cname = realcam.GetIdentifier();
+                    if(cname == null) continue;
+                    if(ent.OwnerID == 0)
+                    {
+                        toremove.Add(cname);
+                    }
+                }
+                foreach(string cn in toremove)
+                {
+                    station.controlBookmarks.Remove(cn);
+                }
+                station.SendNetworkUpdate(BasePlayer.NetworkQueue.Update);
+                station.SendControlBookmarks(player);
+            }
+        }
+
+        void OnEntityDismounted(BaseMountable mountable, BasePlayer player)
+        {
+            var station = mountable.GetComponentInParent<ComputerStation>() ?? null;
+            if(station != null)
+            {
+#if DEBUG
+                Puts("OnEntityMounted: player dismounted CS!");
+#endif
+            }
+        }
+
         [Command("cctv")]
         void cmdCCTV(IPlayer iplayer, string command, string[] args)
         {
@@ -213,7 +238,14 @@ namespace Oxide.Plugins
                                 foundCameras.Add(cname);
 
                                 string displayName = Lang("unknown");
-                                if(ent.OwnerID == 0)
+                                if((ent.OwnerID == 0) && (blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
+                                {
+#if DEBUG
+                                    Puts($"Disabling server-owned camera {cname} {ent.OwnerID.ToString()}.");
+#endif
+                                    continue;
+                                }
+                                else if(ent.OwnerID == 0)
                                 {
                                     displayName = Lang("server");
                                 }
@@ -283,7 +315,7 @@ namespace Oxide.Plugins
                     foundCameras.Add(cname);
                     msg += cname + " @ " + loc.position.ToString() + Lang("ownedby") + ent.OwnerID.ToString() + "\n";
                 }
-                if(msg != null) Message(iplayer, msg);
+                Message(iplayer, msg);
             }
         }
 
