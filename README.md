@@ -1,5 +1,5 @@
 # CCTVControl
-Current version 1.0.5 [Download](https://code.remod.org/CCTVControl.cs)
+Current version 1.0.6 [Download](https://code.remod.org/CCTVControl.cs)
 
 Uses Friends, Clans, Rust Teams
 
@@ -17,10 +17,15 @@ For admins, or those with a specific permission, it will locate all cameras on t
 ### Commands
 
 - `/cctv` - When in range (2m) of a Computer Station, will add any local cameras in range (200m) of the station that the user owns
+- `/cctv add` - When in range (2m) of a Computer Station, will add cameras to the station's list.  This can be a single name or a comma-separated list.  For example:
+
+  /cctv add MYFANCYCAM1, MYOTHERCAM1,COBALT1
+  /cctv add MYFANCYCAM2
+
 - `/cctv clear` - When in range (2m) of a Computer Station, will clear that station's list.
 - `/cctvlist` - Admin command to list ALL cameras
 
-Note that /cctv commands can also be run from F1 console while mounted to a station.
+Note that /cctv commands can also be run from F1 console while mounted to a station, the advantage being that you can up-arrow to easily repeat commands.
 
 When you run /cctvlist from RCON, the plugin will do it's scan from the center of the map and should (now) display the list correctly.
 

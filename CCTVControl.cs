@@ -14,8 +14,8 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.5")]
-    [Description("Allows players to add their local CCTV cameras in bulk to a Computer Station")]
+    [Info("CCTVControl", "RFC1920", "1.0.6")]
+    [Description("Allows players to add CCTV cameras in bulk to a Computer Station")]
     class CCTVControl : RustPlugin
     {
         #region vars
@@ -54,7 +54,7 @@ namespace Oxide.Plugins
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 ["notauthorized"] = "You are not authorized to use this command!",
-                ["foundCamera"] = "Found Camera {0} owned by {1}",
+                ["foundCamera"] = "5ound Camera {0} owned by {1}",
                 ["foundCameras"] = "Found Cameras:",
                 ["cameraexists"] = "Camera {0} already in station",
                 ["ownedby"] = " owned by ",
@@ -199,6 +199,37 @@ namespace Oxide.Plugins
                         station.SendControlBookmarks(player);
                     }
                     break;
+                case "add":
+                    if(args.Length > 1)
+                    {
+                        List<string> cameras = new List<string>();
+                        if(args[1].Contains(","))
+                        {
+                            string newargs = string.Join("", args);
+                            newargs = newargs.Replace("add", "");
+                            cameras = newargs.Split(',').ToList();
+                        }
+                        else
+                        {
+                            cameras.Add(args[1].Trim());
+                        }
+
+                        foreach(var station in stations)
+                        {
+                            foreach(var cname in cameras)
+                            {
+                                string cam = cname.Trim();
+                                Puts($"TEST: '{cam}'");
+                                if(station.controlBookmarks.ContainsKey(cam))
+                                {
+                                    Message(iplayer, "cameraexists", cam);
+                                    continue;
+                                }
+                                AddCamera(player, station, cam);
+                            }
+                        }
+                    }
+                    break;
                 case "local":
                 default:
                     foreach(var station in stations)
@@ -226,7 +257,7 @@ namespace Oxide.Plugins
                             if(cname == null) continue;
                             if(foundCameras.Contains(cname)) continue;
 #if DEBUG
-                            Puts($"Found camera {cname}.");
+                            Puts($"Found camera {cname} at {ent.transform.position.ToString()}.");
 #endif
                             if((ent.OwnerID.ToString() == iplayer.Id || IsFriend(player.userID, ent.OwnerID)) || iplayer.HasPermission(permCCTVAdmin))
                             {
@@ -321,36 +352,49 @@ namespace Oxide.Plugins
 
         void AddCamera(BasePlayer basePlayer, ComputerStation station, string str)
         {
+#if DEBUG
+            Puts($"Trying to add camera {str}");
+#endif
             uint d = 0;
             BaseNetworkable baseNetworkable;
             IRemoteControllable component;
-            bool flag = false;
-            foreach (IRemoteControllable allControllable in RemoteControlEntity.allControllables)
+            foreach(IRemoteControllable allControllable in RemoteControlEntity.allControllables)
             {
-                if (allControllable == null || !(allControllable.GetIdentifier() == str))
+                var curr = allControllable.GetIdentifier();
+                if(allControllable == null)
                 {
+#if DEBUG
+                    Puts($"  skipping null camera {curr}");
+#endif
                     continue;
                 }
-                if (allControllable.GetEnt() != null)
+                if(curr != str) continue;
+
+                if(allControllable.GetEnt() != null)
                 {
                     d = allControllable.GetEnt().net.ID;
-                    flag = true;
-                    if (!flag)
-                    {
-                        return;
-                    }
                     baseNetworkable = BaseNetworkable.serverEntities.Find(d);
-                    if (baseNetworkable == null)
+
+                    if(baseNetworkable == null)
                     {
+#if DEBUG
+                        Puts("  baseNetworkable null");
+#endif
                         return;
                     }
                     component = baseNetworkable.GetComponent<IRemoteControllable>();
-                    if (component == null)
+                    if(component == null)
                     {
+#if DEBUG
+                        Puts("  component null");
+#endif
                         return;
                     }
-                    if (str == component.GetIdentifier())
+                    if(str == component.GetIdentifier())
                     {
+#if DEBUG
+                        Puts("  adding to station...");
+#endif
                         station.controlBookmarks.Add(str, d);
                     }
                     station.SendControlBookmarks(basePlayer);
@@ -358,9 +402,15 @@ namespace Oxide.Plugins
                 }
                 else
                 {
-                    Debug.LogWarning("Computer station added bookmark with missing ent, likely a static CCTV (wipe the server)");
+#if DEBUG
+                    Puts("Computer station added bookmark with missing ent, likely a static CCTV (wipe the server)");
+#endif
+                    return;
                 }
             }
+#if DEBUG
+            Puts($"  {str} cannot be controlled.  Check power!");
+#endif
         }
 
         // playerid = active player, ownerid = owner of camera, who may be offline
@@ -407,6 +457,16 @@ namespace Oxide.Plugins
 //                var activeCamera = player.GetMounted().GetComponentInParent<ComputerStation>() ?? null;
 //                if(activeCamera != null)
 //                {
+//                    var cctv = activeCamera.currentlyControllingEnt.Get(true) as CCTV_RC;
+//                    if(input.WasJustPressed(BUTTON.FORWARD) || input.WasJustPressed(BUTTON.BACKWARD) || input.WasJustPressed(BUTTON.LEFT) || input.WasJustPressed(BUTTON.RIGHT))
+//                    {
+//                        cctv.UserInput(input, player);
+//                        Puts("Doing stuff");
+//                    }
+//                    if(input.WasJustPressed(BUTTON.FORWARD)) cctv.yawAmount += 1f;
+//                    if(input.WasJustPressed(BUTTON.BACKWARD)) cctv.yawAmount -= 1f;
+//                    if(input.WasJustPressed(BUTTON.LEFT)) cctv.pitchAmount += 1f;
+//                    if(input.WasJustPressed(BUTTON.RIGHT)) cctv.pitchAmount -= 1f;
 //                    activeCamera.currentlyControllingEnt.Get(true).GetComponent<IRemoteControllable>().UserInput(input, player);
 //                }
 //            }
