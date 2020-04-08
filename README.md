@@ -53,6 +53,10 @@ Players with the cctvcontrol.admin permission can also pan and tilt server stati
 }
 ```
 
+If playSound is true, a noise will accompany the pan and tilt operation.
+
+If playAtCamera is true, the sound will play at the position of the camera.  Note that while controlling a camera, the controlling player hears the local sound at the camera.  So, the difference should be that players around the camera would also hear the camera moving if set.
+
 Note that you can set the default search range for users and admins.
 
 You can also selectively enable support for Friends, Clans, and Rust Teams.
