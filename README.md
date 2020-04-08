@@ -1,12 +1,10 @@
 # CCTVControl
-Current version 1.0.6 [Download](https://code.remod.org/CCTVControl.cs)
+Current version 1.0.7 [Download](https://code.remod.org/CCTVControl.cs)
 
 Uses Friends, Clans, Rust Teams
 
 ### Overview
-Provides basic CCTV control, currently only for finding cameras.
-
-This plugin strives to provide remote camera control.  For now, it can locate your cameras and add them to your computer station.
+Provides basic CCTV control, including pan/tilt, and adding and removing cameras to a station.
 
 For normal players, it will find their cameras within a range of 200m by default.
 
@@ -29,10 +27,14 @@ Note that /cctv commands can also be run from F1 console while mounted to a stat
 
 When you run /cctvlist from RCON, the plugin will do it's scan from the center of the map and should (now) display the list correctly.
 
+NOTE: When controlling camaras remotely, use the WASD keys for pan and tilt.
+
+Players with the cctvcontrol.admin permission can also pan and tilt server static cameras.
+
 ### Permission
 
 - `cctvcontrol.use` = Allows use of the /cctv command to add cameras to a computer station.
-- `cctvcontrol.admin` = Allows /cctv user to add all cameras, regardless of owner.
+- `cctvcontrol.admin` = Allows /cctv user to add all cameras, regardless of owner, and to move static cameras.
 - `cctvcontrol.list` = Allows admin list of ALL cameras, regardless of owner using /cctvlist.
 
 ### Configuration
@@ -42,6 +44,8 @@ When you run /cctvlist from RCON, the plugin will do it's scan from the center o
   "userRange": 200.0,
   "adminRange": 4000.0,
   "userMapWide": false,
+  "playAtCamera": true,
+  "playSound": true,
   "useFriends": false,
   "useClans": false,
   "useTeams": false,
@@ -58,3 +62,4 @@ If you wish, you can also enable a map-wide search for users to add their camera
 If you set blockServerCams true, a user without the cctvcontrol.admin permission will not be able to add server/monument cameras in bulk.  There is currently no way to prevent them from adding them once mounted.  But, the plugin will remove them when they remount the station.
 
 If, however, the cctvcontrol.admin permission is set, the user will be able to add all cameras, regardless of owner.
+

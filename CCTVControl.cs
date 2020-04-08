@@ -14,8 +14,8 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.6")]
-    [Description("Allows players to add CCTV cameras in bulk to a Computer Station")]
+    [Info("CCTVControl", "RFC1920", "1.0.7")]
+    [Description("Allows players to add CCTV cameras to a Computer Station and control them remotely")]
     class CCTVControl : RustPlugin
     {
         #region vars
@@ -25,6 +25,7 @@ namespace Oxide.Plugins
         private const string permCCTV = "cctvcontrol.use";
         private const string permCCTVAdmin = "cctvcontrol.admin";
         private const string permCCTVList = "cctvcontrol.list";
+        private string moveSound = "assets/prefabs/deployable/playerioents/detectors/hbhfsensor/effects/detect_up.prefab";
 
         float userRange = 200f;
         float adminRange = 4000f;
@@ -34,6 +35,8 @@ namespace Oxide.Plugins
         bool useTeams = false;
         bool userMapWide = false;
         bool blockServerCams = false;
+        bool playSound = true;
+        bool playAtCamera = true;
         #endregion
 
         #region Message
@@ -99,6 +102,8 @@ namespace Oxide.Plugins
             CheckCfg<bool>("useTeams", ref useTeams);
             CheckCfg<bool>("userMapWide", ref userMapWide);
             CheckCfg<bool>("blockServerCams", ref blockServerCams);
+            CheckCfg<bool>("playSound", ref playSound);
+            CheckCfg<bool>("playAtCamera", ref playAtCamera);
         }
 
         private void LoadVariables()
@@ -449,51 +454,56 @@ namespace Oxide.Plugins
             return false;
         }
 
-//        private void OnPlayerInput(BasePlayer player, InputState input)
-//        {
-//            if(player == null || input == null) return;
-//            try
-//            {
-//                var activeCamera = player.GetMounted().GetComponentInParent<ComputerStation>() ?? null;
-//                if(activeCamera != null)
-//                {
-//                    var cctv = activeCamera.currentlyControllingEnt.Get(true) as CCTV_RC;
-//                    if(input.WasJustPressed(BUTTON.FORWARD) || input.WasJustPressed(BUTTON.BACKWARD) || input.WasJustPressed(BUTTON.LEFT) || input.WasJustPressed(BUTTON.RIGHT))
-//                    {
-//                        cctv.UserInput(input, player);
-//                        Puts("Doing stuff");
-//                    }
-//                    if(input.WasJustPressed(BUTTON.FORWARD)) cctv.yawAmount += 1f;
-//                    if(input.WasJustPressed(BUTTON.BACKWARD)) cctv.yawAmount -= 1f;
-//                    if(input.WasJustPressed(BUTTON.LEFT)) cctv.pitchAmount += 1f;
-//                    if(input.WasJustPressed(BUTTON.RIGHT)) cctv.pitchAmount -= 1f;
-//                    activeCamera.currentlyControllingEnt.Get(true).GetComponent<IRemoteControllable>().UserInput(input, player);
-//                }
-//            }
-//            catch {}
-//        }
+        private void OnPlayerInput(BasePlayer player, InputState input)
+        {
+            if(player == null || input == null) return;
 
-        // How they accept input from the user to a camera
-//        public override void UserInput(InputState inputState, BasePlayer player)
-//        {
-//            if (!this.hasPTZ)
-//            {
-//                return;
-//            }
-//            float single = 1f;
-//            float single1 = Mathf.Clamp(-inputState.current.mouseDelta.y, -1f, 1f);
-//            float single2 = Mathf.Clamp(inputState.current.mouseDelta.x, -1f, 1f);
-//            this.pitchAmount = Mathf.Clamp(this.pitchAmount + single1 * single * this.turnSpeed, this.pitchClamp.x, this.pitchClamp.y);
-//            this.yawAmount = Mathf.Clamp(this.yawAmount + single2 * single * this.turnSpeed, this.yawClamp.x, this.yawClamp.y);
-//            Quaternion quaternion = Quaternion.Euler(this.pitchAmount, 0f, 0f);
-//            Quaternion quaternion1 = Quaternion.Euler(0f, this.yawAmount, 0f);
-//            this.pitch.transform.localRotation = quaternion;
-//            this.yaw.transform.localRotation = quaternion1;
-//            if (single1 != 0f || single2 != 0f)
-//            {
-//                base.SendNetworkUpdate(BasePlayer.NetworkQueue.Update);
-//            }
-//        }
+            if(input.IsDown(BUTTON.FORWARD) || input.IsDown(BUTTON.BACKWARD) || input.IsDown(BUTTON.LEFT) || input.IsDown(BUTTON.RIGHT))
+            {
+                try
+                {
+                    var activeCamera = player.GetMounted().GetComponentInParent<ComputerStation>() ?? null;
+                    if(activeCamera != null)
+                    {
+                        var cctv = activeCamera.currentlyControllingEnt.Get(true).GetComponent<CCTV_RC>();
+                        if(cctv == null) return;
+                        if(cctv.IsStatic() && !player.IPlayer.HasPermission(permCCTVAdmin)) return;
+                        cctv.hasPTZ = true;
+
+                        float y = input.IsDown(BUTTON.FORWARD) ? 1f : (input.IsDown(BUTTON.BACKWARD) ? -1f : 0f);
+                        float x = input.IsDown(BUTTON.RIGHT) ? 1f : (input.IsDown(BUTTON.LEFT) ? -1f : 0f);
+#if DEBUG
+                        string ud = input.IsDown(BUTTON.FORWARD) ? "up" : (input.IsDown(BUTTON.BACKWARD) ? "down" : "");
+                        string lr = input.IsDown(BUTTON.RIGHT) ? "right" : (input.IsDown(BUTTON.LEFT) ? "left" : "");
+                        string udlr = ud + lr;
+                        Puts($"Trying to move camera {udlr}.");
+#endif
+                        InputState inputState = new InputState();
+                        inputState.current.mouseDelta.y = y * 0.2f;
+                        inputState.current.mouseDelta.x = x * 0.2f;
+
+                        cctv.UserInput(inputState, player);
+
+                        if(playSound)
+                        {
+                            Effect effect = new Effect(moveSound, new Vector3(0, 0, 0), Vector3.forward);
+                            if(playAtCamera)
+                            {
+                                effect.worldPos = cctv.transform.position;
+                                effect.origin   = cctv.transform.position;
+                            }
+                            else
+                            {
+                                effect.worldPos = player.transform.position;
+                                effect.origin   = player.transform.position;
+                            }
+                            EffectNetwork.Send(effect);
+                        }
+                    }
+                }
+                catch {}
+            }
+        }
         #endregion
     }
 }
