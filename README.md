@@ -1,5 +1,5 @@
 # CCTVControl
-Current version 1.0.7 [Download](https://code.remod.org/CCTVControl.cs)
+Current version 1.0.8 [Download](https://code.remod.org/CCTVControl.cs)
 
 Uses Friends, Clans, Rust Teams
 
@@ -27,7 +27,7 @@ Note that /cctv commands can also be run from F1 console while mounted to a stat
 
 When you run /cctvlist from RCON, the plugin will do it's scan from the center of the map and should (now) display the list correctly.
 
-NOTE: When controlling camaras remotely, use the WASD keys for pan and tilt.
+NOTE: When controlling camaras remotely, use the WASD keys for pan and tilt.  Use the shift key to accelerate movement.
 
 Players with the cctvcontrol.admin permission can also pan and tilt server static cameras.
 
