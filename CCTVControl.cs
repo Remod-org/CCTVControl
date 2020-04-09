@@ -14,7 +14,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.7")]
+    [Info("CCTVControl", "RFC1920", "1.0.8")]
     [Description("Allows players to add CCTV cameras to a Computer Station and control them remotely")]
     class CCTVControl : RustPlugin
     {
@@ -478,9 +478,12 @@ namespace Oxide.Plugins
                         string udlr = ud + lr;
                         Puts($"Trying to move camera {udlr}.");
 #endif
+                        float speed = 0.1f;
+                        if(input.IsDown(BUTTON.SPRINT)) speed *= 3;
+
                         InputState inputState = new InputState();
-                        inputState.current.mouseDelta.y = y * 0.2f;
-                        inputState.current.mouseDelta.x = x * 0.2f;
+                        inputState.current.mouseDelta.y = y * speed;
+                        inputState.current.mouseDelta.x = x * speed;
 
                         cctv.UserInput(inputState, player);
 
