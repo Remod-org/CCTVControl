@@ -1,42 +1,51 @@
+#region License (GPL v3)
+/*
+    DESCRIPTION
+    Copyright (c) 2020 RFC1920 <desolationoutpostpve@gmail.com>
+
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation; either version 2
+    of the License, or (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+    Optionally you can also view the license at <http://www.gnu.org/licenses/>.
+*/
+#endregion License Information (GPL v3)
 //#define DEBUG
-using System;
 using System.Collections.Generic;
 using UnityEngine;
-using Oxide.Core;
-using System.Text;
 using System.Linq;
 using Oxide.Core.Plugins;
-using System.Linq;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using Oxide.Game.Rust.Cui;
 using Oxide.Core.Libraries.Covalence;
+using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.8")]
+    [Info("CCTVControl", "RFC1920", "1.0.9")]
     [Description("Allows players to add CCTV cameras to a Computer Station and control them remotely")]
     class CCTVControl : RustPlugin
     {
         #region vars
+        ConfigData configData;
         [PluginReference]
         private Plugin Clans, Friends, RustIO;
 
         private const string permCCTV = "cctvcontrol.use";
         private const string permCCTVAdmin = "cctvcontrol.admin";
         private const string permCCTVList = "cctvcontrol.list";
-        private string moveSound = "assets/prefabs/deployable/playerioents/detectors/hbhfsensor/effects/detect_up.prefab";
+        private readonly string moveSound = "assets/prefabs/deployable/playerioents/detectors/hbhfsensor/effects/detect_up.prefab";
+        private readonly int targetLayer = LayerMask.GetMask("Construction", "Construction Trigger", "Default", "Trigger", "Deployed", "AI", "Deployable");
 
-        float userRange = 200f;
-        float adminRange = 4000f;
         float mapSize = 0f;
-        bool useFriends = false;
-        bool useClans = false;
-        bool useTeams = false;
-        bool userMapWide = false;
-        bool blockServerCams = false;
-        bool playSound = true;
-        bool playAtCamera = true;
         #endregion
 
         #region Message
@@ -53,7 +62,10 @@ namespace Oxide.Plugins
             permission.RegisterPermission(permCCTV, this);
             permission.RegisterPermission(permCCTVAdmin, this);
             permission.RegisterPermission(permCCTVList, this);
+        }
 
+        protected override void LoadDefaultMessages()
+        {
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 ["notauthorized"] = "You are not authorized to use this command!",
@@ -78,32 +90,44 @@ namespace Oxide.Plugins
         #endregion
 
         #region Config
+        public class ConfigData
+        {
+            public float userRange = 200f;
+            public float adminRange = 4000f;
+            public bool useFriends = false;
+            public bool useClans = false;
+            public bool useTeams = false;
+            public bool userMapWide = false;
+            public bool blockServerCams = false;
+            public bool playSound = true;
+            public bool playAtCamera = true;
+
+            public VersionNumber Version;
+        }
+
         protected override void LoadDefaultConfig()
         {
-#if DEBUG
-            Puts("Creating a new config file...");
-#endif
-            userRange = 200f;
-            userMapWide = false;
-            adminRange = 4000f;
-            useFriends = false;
-            useClans = false;
-            useTeams = false;
-            blockServerCams = false;
-            LoadVariables();
+            Puts("Creating new config file.");
+            var config = new ConfigData
+            {
+                Version = Version
+            };
+            SaveConfig(config);
         }
 
         private void LoadConfigVariables()
         {
-            CheckCfgFloat("userRange", ref userRange);
-            CheckCfgFloat("adminRange", ref adminRange);
-            CheckCfg<bool>("useFriends", ref useFriends);
-            CheckCfg<bool>("useClans", ref useClans);
-            CheckCfg<bool>("useTeams", ref useTeams);
-            CheckCfg<bool>("userMapWide", ref userMapWide);
-            CheckCfg<bool>("blockServerCams", ref blockServerCams);
-            CheckCfg<bool>("playSound", ref playSound);
-            CheckCfg<bool>("playAtCamera", ref playAtCamera);
+#if DEBUG
+            Puts("Loading configuration...");
+#endif
+            configData = Config.ReadObject<ConfigData>();
+            configData.Version = Version;
+            SaveConfig(configData);
+        }
+
+        private void SaveConfig(ConfigData config)
+        {
+            Config.WriteObject(config, true);
         }
 
         private void LoadVariables()
@@ -111,37 +135,13 @@ namespace Oxide.Plugins
             LoadConfigVariables();
             SaveConfig();
         }
-
-        private void CheckCfg<T>(string Key, ref T var)
-        {
-            if(Config[Key] is T)
-            {
-                var = (T)Config[Key];
-            }
-            else
-            {
-                Config[Key] = var;
-            }
-        }
-
-        private void CheckCfgFloat(string Key, ref float var)
-        {
-            if(Config[Key] != null)
-            {
-                var = Convert.ToSingle(Config[Key]);
-            }
-            else
-            {
-                Config[Key] = var;
-            }
-        }
         #endregion
 
         #region Main
         void OnEntityMounted(BaseMountable mountable, BasePlayer player)
         {
             var station = mountable.GetComponentInParent<ComputerStation>() ?? null;
-            if(station != null && (blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
+            if(station != null && (configData.blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
             {
 #if DEBUG
                 Puts("OnEntityMounted: player mounted CS!");
@@ -188,7 +188,7 @@ namespace Oxide.Plugins
             var player = iplayer.Object as BasePlayer;
 
             List<ComputerStation> stations = new List<ComputerStation>();
-            Vis.Entities<ComputerStation>(player.transform.position, 2f, stations);
+            Vis.Entities(player.transform.position, 2f, stations);
             bool foundS = false;
 
             string cmd = null;
@@ -204,6 +204,17 @@ namespace Oxide.Plugins
                         station.SendControlBookmarks(player);
                     }
                     break;
+//                case "rename":
+//                    {
+//                        List<CCTV_RC> cameras = new List<CCTV_RC>();
+//                        Vis.Entities(player.transform.position, 2f, cameras);
+//                        foreach(var cam in cameras)
+//                        {
+//                            cam.UpdateIdentifier(args[1]);
+//                            break;
+//                        }
+//                    }
+//                    break;
                 case "add":
                     if(args.Length > 1)
                     {
@@ -224,7 +235,6 @@ namespace Oxide.Plugins
                             foreach(var cname in cameras)
                             {
                                 string cam = cname.Trim();
-                                Puts($"TEST: '{cam}'");
                                 if(station.controlBookmarks.ContainsKey(cam))
                                 {
                                     Message(iplayer, "cameraexists", cam);
@@ -243,10 +253,10 @@ namespace Oxide.Plugins
                         Message(iplayer, "foundStation");
                         List<CCTV_RC> cameras = new List<CCTV_RC>();
 
-                        float range = userRange;
-                        if(userMapWide || iplayer.HasPermission(permCCTVAdmin)) range = mapSize;
+                        float range = configData.userRange;
+                        if(configData.userMapWide || iplayer.HasPermission(permCCTVAdmin)) range = mapSize;
 
-                        Vis.Entities<CCTV_RC>(player.transform.position, range, cameras);
+                        Vis.Entities(player.transform.position, range, cameras, targetLayer);
                         List<string> foundCameras = new List<string>();
 
 #if DEBUG
@@ -274,7 +284,7 @@ namespace Oxide.Plugins
                                 foundCameras.Add(cname);
 
                                 string displayName = Lang("unknown");
-                                if((ent.OwnerID == 0) && (blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
+                                if((ent.OwnerID == 0) && (configData.blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
                                 {
 #if DEBUG
                                     Puts($"Disabling server-owned camera {cname} {ent.OwnerID.ToString()}.");
@@ -314,7 +324,7 @@ namespace Oxide.Plugins
 
             if((iplayer.Object as BasePlayer) == null)
             {
-                Vis.Entities<CCTV_RC>(Vector3.zero, mapSize, cameras);
+                Vis.Entities(Vector3.zero, mapSize, cameras);
                 Puts(Lang("foundCameras"));
                 foreach(var camera in cameras)
                 {
@@ -336,7 +346,7 @@ namespace Oxide.Plugins
                 if(!iplayer.IsAdmin && !iplayer.HasPermission(permCCTVList)) return;
                 var player = iplayer.Object as BasePlayer;
 
-                Vis.Entities<CCTV_RC>(player.transform.position, adminRange, cameras);
+                Vis.Entities(player.transform.position, configData.adminRange, cameras);
                 Message(iplayer, "foundCameras");
                 foreach(var camera in cameras)
                 {
@@ -421,7 +431,7 @@ namespace Oxide.Plugins
         // playerid = active player, ownerid = owner of camera, who may be offline
         bool IsFriend(ulong playerid, ulong ownerid)
         {
-            if(useFriends && Friends != null)
+            if(configData.useFriends && Friends != null)
             {
                 var fr = Friends?.CallHook("AreFriends", playerid, ownerid);
                 if(fr != null && (bool)fr)
@@ -429,7 +439,7 @@ namespace Oxide.Plugins
                     return true;
                 }
             }
-            if(useClans && Clans != null)
+            if(configData.useClans && Clans != null)
             {
                 string playerclan = (string)Clans?.CallHook("GetClanOf", playerid);
                 string ownerclan  = (string)Clans?.CallHook("GetClanOf", ownerid);
@@ -438,7 +448,7 @@ namespace Oxide.Plugins
                     return true;
                 }
             }
-            if(useTeams)
+            if(configData.useTeams)
             {
                 BasePlayer player = BasePlayer.FindByID(playerid);
                 if(player.currentTeam != (long)0)
@@ -487,10 +497,10 @@ namespace Oxide.Plugins
 
                         cctv.UserInput(inputState, player);
 
-                        if(playSound)
+                        if(configData.playSound)
                         {
                             Effect effect = new Effect(moveSound, new Vector3(0, 0, 0), Vector3.forward);
-                            if(playAtCamera)
+                            if(configData.playAtCamera)
                             {
                                 effect.worldPos = cctv.transform.position;
                                 effect.origin   = cctv.transform.position;
