@@ -30,7 +30,7 @@ using Oxide.Core;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.10")]
+    [Info("CCTVControl", "RFC1920", "1.0.11")]
     [Description("Allows players to add CCTV cameras to a Computer Station and control them remotely")]
     class CCTVControl : RustPlugin
     {
@@ -517,7 +517,7 @@ namespace Oxide.Plugins
                 BasePlayer player = BasePlayer.FindByID(playerid);
                 if(player.currentTeam != (long)0)
                 {
-                    RelationshipManager.PlayerTeam playerTeam = RelationshipManager.Instance.FindTeam(player.currentTeam);
+                    RelationshipManager.PlayerTeam playerTeam = RelationshipManager.ServerInstance.FindTeam(player.currentTeam);
                     if(playerTeam == null) return false;
                     if(playerTeam.members.Contains(ownerid))
                     {
