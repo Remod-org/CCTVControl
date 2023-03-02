@@ -1,12 +1,12 @@
-#region License (GPL v3)
+#region License (GPL v2)
 /*
-    DESCRIPTION
-    Copyright (c) 2020 RFC1920 <desolationoutpostpve@gmail.com>
+    CCTV Control
+    Copyright (c) 2020-2023 RFC1920 <desolationoutpostpve@gmail.com>
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License
     as published by the Free Software Foundation; either version 2
-    of the License, or (at your option) any later version.
+    of the license only.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -19,33 +19,31 @@
 
     Optionally you can also view the license at <http://www.gnu.org/licenses/>.
 */
-#endregion License Information (GPL v3)
-//#define DEBUG
+#endregion License Information (GPL v2)
 using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
 using Oxide.Core.Plugins;
 using Oxide.Core.Libraries.Covalence;
 using Oxide.Core;
+using Oxide.Core.Extensions;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.11")]
+    [Info("CCTVControl", "RFC1920", "1.0.12")]
     [Description("Allows players to add CCTV cameras to a Computer Station and control them remotely")]
-    class CCTVControl : RustPlugin
+    internal class CCTVControl : RustPlugin
     {
         #region vars
-        ConfigData configData;
-        [PluginReference]
-        private Plugin Clans, Friends, RustIO;
-
+        private ConfigData configData;
+        private readonly Plugin Clans, Friends, RustIO;
         private const string permCCTV = "cctvcontrol.use";
         private const string permCCTVAdmin = "cctvcontrol.admin";
         private const string permCCTVList = "cctvcontrol.list";
         private readonly string moveSound = "assets/prefabs/deployable/playerioents/detectors/hbhfsensor/effects/detect_up.prefab";
         private readonly int targetLayer = LayerMask.GetMask("Construction", "Construction Trigger", "Default", "Trigger", "Deployed", "AI", "Deployable");
 
-        float mapSize = 0f;
+        private float mapSize;
         #endregion
 
         #region Message
@@ -54,7 +52,7 @@ namespace Oxide.Plugins
         #endregion
 
         #region init
-        void Init()
+        private void Init()
         {
             AddCovalenceCommand("cctv", "cmdCCTV");
             AddCovalenceCommand("cctvlist", "cmdCCTVList");
@@ -62,6 +60,18 @@ namespace Oxide.Plugins
             permission.RegisterPermission(permCCTV, this);
             permission.RegisterPermission(permCCTVAdmin, this);
             permission.RegisterPermission(permCCTVList, this);
+        }
+
+        private void DestroyAll<T>()
+        {
+            Object[] objects = UnityEngine.Object.FindObjectsOfType(typeof(T));
+            if (objects != null)
+            {
+                foreach (Object gameObj in objects)
+                {
+                    UnityEngine.Object.Destroy(gameObj);
+                }
+            }
         }
 
         protected override void LoadDefaultMessages()
@@ -84,7 +94,7 @@ namespace Oxide.Plugins
             }, this);
         }
 
-        void Loaded()
+        private void Loaded()
         {
             mapSize = ConVar.Server.worldsize > 0 ? ConVar.Server.worldsize : 4000f;
             LoadVariables();
@@ -94,15 +104,16 @@ namespace Oxide.Plugins
         #region Config
         public class ConfigData
         {
-            public float userRange = 200f;
-            public float adminRange = 4000f;
-            public bool useFriends = false;
-            public bool useClans = false;
-            public bool useTeams = false;
-            public bool userMapWide = false;
-            public bool blockServerCams = false;
-            public bool playSound = true;
-            public bool playAtCamera = true;
+            public bool debug;
+            public float userRange;
+            public float adminRange;
+            public bool useFriends;
+            public bool useClans;
+            public bool useTeams;
+            public bool userMapWide;
+            public bool blockServerCams;
+            public bool playSound;
+            public bool playAtCamera;
 
             public VersionNumber Version;
         }
@@ -110,8 +121,18 @@ namespace Oxide.Plugins
         protected override void LoadDefaultConfig()
         {
             Puts("Creating new config file.");
-            var config = new ConfigData
+            ConfigData config = new ConfigData
             {
+                debug = false,
+                userRange = 200f,
+                adminRange = 4000f,
+                useFriends = false,
+                useClans = false,
+                useTeams = false,
+                userMapWide = false,
+                blockServerCams = false,
+                playSound = true,
+                playAtCamera = true,
                 Version = Version
             };
             SaveConfig(config);
@@ -119,9 +140,6 @@ namespace Oxide.Plugins
 
         private void LoadConfigVariables()
         {
-#if DEBUG
-            Puts("Loading configuration...");
-#endif
             configData = Config.ReadObject<ConfigData>();
             configData.Version = Version;
             SaveConfig(configData);
@@ -140,29 +158,35 @@ namespace Oxide.Plugins
         #endregion
 
         #region Main
-        void OnEntityMounted(BaseMountable mountable, BasePlayer player)
+        //private object OnCCTVDirectionChange(CCTV_RC camera, BasePlayer player)
+        //{
+        //    Puts("Moving light to match camera");
+        //    BaseEntity sl = camera.gameObject.GetComponentInChildren<SimpleLight>() as BaseEntity;
+        //    //sl.transform.forward = new Vector3(camera.pivotOrigin.forward.x, sl.transform.forward.y, camera.pivotOrigin.forward.z);
+        //    sl.transform.forward = new Vector3(camera.transform.forward.x, sl.transform.forward.y, camera.transform.forward.z);
+        //    return null;
+        //}
+
+        private void OnEntityMounted(BaseMountable mountable, BasePlayer player)
         {
-            var station = mountable.GetComponentInParent<ComputerStation>() ?? null;
-            if(station != null && (configData.blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
+            ComputerStation station = mountable.GetComponentInParent<ComputerStation>();
+            if (station != null && (configData.blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
             {
-#if DEBUG
-                Puts("OnEntityMounted: player mounted CS!");
-#endif
+                if (configData.debug) Puts("OnEntityMounted: player mounted CS!");
                 List<string> toremove = new List<string>();
-                foreach(KeyValuePair<string, uint> bm in station.controlBookmarks)
+                foreach (string bm in station.controlBookmarks)
                 {
-                    var cament = BaseNetworkable.serverEntities.Find(bm.Value);
-                    var realcam = cament as IRemoteControllable;
-                    var ent = realcam.GetEnt();
-                    if(ent == null) continue;
-                    var cname = realcam.GetIdentifier();
-                    if(cname == null) continue;
-                    if(ent.OwnerID == 0)
+                    IRemoteControllable realcam = RemoteControlEntity.FindByID(bm);
+                    BaseEntity ent = realcam.GetEnt();
+                    if (ent == null) continue;
+                    string cname = realcam.GetIdentifier();
+                    if (cname == null) continue;
+                    if (ent.OwnerID == 0)
                     {
                         toremove.Add(cname);
                     }
                 }
-                foreach(string cn in toremove)
+                foreach (string cn in toremove)
                 {
                     station.controlBookmarks.Remove(cn);
                 }
@@ -171,36 +195,44 @@ namespace Oxide.Plugins
             }
         }
 
-        void OnEntityDismounted(BaseMountable mountable, BasePlayer player)
+        private void OnEntityDismounted(BaseMountable mountable, BasePlayer player)
         {
-            var station = mountable.GetComponentInParent<ComputerStation>() ?? null;
-            if(station != null)
+            ComputerStation station = mountable.GetComponentInParent<ComputerStation>();
+            if (station != null)
             {
-#if DEBUG
-                Puts("OnEntityMounted: player dismounted CS!");
-#endif
+                if (configData.debug) Puts("OnEntityMounted: player dismounted CS!");
+            }
+        }
+
+        public void RemoveComps(BaseEntity obj)
+        {
+            UnityEngine.Object.DestroyImmediate(obj.GetComponent<DestroyOnGroundMissing>());
+            UnityEngine.Object.DestroyImmediate(obj.GetComponent<GroundWatch>());
+            foreach (MeshCollider mesh in obj.GetComponentsInChildren<MeshCollider>())
+            {
+                UnityEngine.Object.DestroyImmediate(mesh);
             }
         }
 
         [Command("cctv")]
-        void cmdCCTV(IPlayer iplayer, string command, string[] args)
+        private void cmdCCTV(IPlayer iplayer, string command, string[] args)
         {
-            if((iplayer.Object as BasePlayer) == null) return;
-            if(!iplayer.HasPermission(permCCTV)) { Message(iplayer, "notauthorized"); return; }
-            var player = iplayer.Object as BasePlayer;
+            if (!(iplayer.Object is BasePlayer)) return;
+            if (!iplayer.HasPermission(permCCTV)) { Message(iplayer, "notauthorized"); return; }
+            BasePlayer player = iplayer.Object as BasePlayer;
 
             List<ComputerStation> stations = new List<ComputerStation>();
             Vis.Entities(player.transform.position, 2f, stations);
             bool foundS = false;
 
             string cmd = null;
-            if(args.Length == 0) cmd = null;
+            if (args.Length == 0) cmd = null;
             else cmd = args[0];
 
             switch(cmd)
             {
                 case "clear":
-                    foreach(var station in stations)
+                    foreach (ComputerStation station in stations)
                     {
                         station.controlBookmarks.Clear();
                         station.SendControlBookmarks(player);
@@ -210,7 +242,7 @@ namespace Oxide.Plugins
 //                    {
 //                        List<CCTV_RC> cameras = new List<CCTV_RC>();
 //                        Vis.Entities(player.transform.position, 2f, cameras);
-//                        foreach(var cam in cameras)
+//                        foreach (var cam in cameras)
 //                        {
 //                            cam.UpdateIdentifier(args[1]);
 //                            break;
@@ -218,12 +250,12 @@ namespace Oxide.Plugins
 //                    }
 //                    break;
                 case "add":
-                    if(args.Length > 1)
+                    if (args.Length > 1)
                     {
                         List<string> cameras = new List<string>();
-                        if(args[1].Contains(","))
+                        if (args[1].Contains(","))
                         {
-                            string newargs = string.Join("", args);
+                            string newargs = string.Concat(args);
                             newargs = newargs.Replace("add", "");
                             cameras = newargs.Split(',').ToList();
                         }
@@ -232,12 +264,12 @@ namespace Oxide.Plugins
                             cameras.Add(args[1].Trim());
                         }
 
-                        foreach(var station in stations)
+                        foreach (ComputerStation station in stations)
                         {
-                            foreach(var cname in cameras)
+                            foreach (string cname in cameras)
                             {
                                 string cam = cname.Trim();
-                                if(station.controlBookmarks.ContainsKey(cam))
+                                if (station.controlBookmarks.Contains(cam))
                                 {
                                     Message(iplayer, "cameraexists", cam);
                                     continue;
@@ -248,33 +280,31 @@ namespace Oxide.Plugins
                     }
                     break;
                 case "drones":
-                    foreach(var station in stations)
+                    foreach (ComputerStation station in stations)
                     {
                         foundS = true;
                         Message(iplayer, "foundStation");
                         List<Drone> drones = new List<Drone>();
 
                         float range = configData.userRange;
-                        if(configData.userMapWide || iplayer.HasPermission(permCCTVAdmin)) range = mapSize;
+                        if (configData.userMapWide || iplayer.HasPermission(permCCTVAdmin)) range = mapSize;
 
                         Vis.Entities(player.transform.position, range, drones, targetLayer);
                         List<string> foundCameras = new List<string>();
 
-                        foreach(var camera in drones)
+                        foreach (Drone camera in drones)
                         {
-                            var realcam = camera as IRemoteControllable;
-                            if(realcam == null) continue;
-                            var ent = realcam.GetEnt();
-                            if(ent == null) continue;
-                            var cname = realcam.GetIdentifier();
-                            if(cname == null) continue;
-                            if(foundCameras.Contains(cname)) continue;
-#if DEBUG
-                            Puts($"Found drone {cname} at {ent.transform.position.ToString()}.");
-#endif
-                            if((ent.OwnerID.ToString() == iplayer.Id || IsFriend(player.userID, ent.OwnerID)) || iplayer.HasPermission(permCCTVAdmin))
+                            IRemoteControllable realcam = camera as IRemoteControllable;
+                            if (realcam == null) continue;
+                            BaseEntity ent = realcam.GetEnt();
+                            if (ent == null) continue;
+                            string cname = realcam.GetIdentifier();
+                            if (cname == null) continue;
+                            if (foundCameras.Contains(cname)) continue;
+                            if (configData.debug) Puts($"Found drone {cname} at {ent.transform.position.ToString()}.");
+                            if (ent.OwnerID.ToString() == iplayer.Id || IsFriend(player.userID, ent.OwnerID) || iplayer.HasPermission(permCCTVAdmin))
                             {
-                                if(station.controlBookmarks.ContainsKey(cname))
+                                if (station.controlBookmarks.Contains(cname))
                                 {
                                     Message(iplayer, "cameraexists", cname);
                                     continue;
@@ -282,21 +312,19 @@ namespace Oxide.Plugins
                                 foundCameras.Add(cname);
 
                                 string displayName = Lang("unknown");
-                                if((ent.OwnerID == 0) && (configData.blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
+                                if ((ent.OwnerID == 0) && (configData.blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
                                 {
-#if DEBUG
-                                    Puts($"Disabling server-owned drone {cname} {ent.OwnerID.ToString()}.");
-#endif
+                                    if (configData.debug) Puts($"Disabling server-owned drone {cname} {ent.OwnerID.ToString()}.");
                                     continue;
                                 }
-                                else if(ent.OwnerID == 0)
+                                else if (ent.OwnerID == 0)
                                 {
                                     displayName = Lang("server");
                                 }
                                 else
                                 {
-                                    var pl = BasePlayer.Find(ent.OwnerID.ToString());
-                                    if(pl != null) displayName = pl.displayName;
+                                    BasePlayer pl = BasePlayer.Find(ent.OwnerID.ToString());
+                                    if (pl != null) displayName = pl.displayName;
                                 }
 
                                 Message(iplayer, "foundDrone", cname, displayName);
@@ -305,42 +333,37 @@ namespace Oxide.Plugins
                         }
                         break;
                     }
-                    if(!foundS)
+                    if (!foundS)
                     {
                         Message(iplayer, "noStation");
                     }
                     break;
-                case "local":
                 default:
-                    foreach(var station in stations)
+                    foreach (ComputerStation station in stations)
                     {
                         foundS = true;
                         Message(iplayer, "foundStation");
                         List<CCTV_RC> cameras = new List<CCTV_RC>();
 
                         float range = configData.userRange;
-                        if(configData.userMapWide || iplayer.HasPermission(permCCTVAdmin)) range = mapSize;
+                        if (configData.userMapWide || iplayer.HasPermission(permCCTVAdmin)) range = mapSize;
 
                         Vis.Entities(player.transform.position, range, cameras, targetLayer);
                         List<string> foundCameras = new List<string>();
-#if DEBUG
-                        Puts($"Searching for cameras over a {range.ToString()}m radius.");
-#endif
-                        foreach(var camera in cameras)
+                        if (configData.debug) Puts($"Searching for cameras over a {range.ToString()}m radius.");
+                        foreach (CCTV_RC camera in cameras)
                         {
-                            var realcam = camera as IRemoteControllable;
-                            if(realcam == null) continue;
-                            var ent = realcam.GetEnt();
-                            if(ent == null) continue;
-                            var cname = realcam.GetIdentifier();
-                            if(cname == null) continue;
-                            if(foundCameras.Contains(cname)) continue;
-#if DEBUG
-                            Puts($"Found camera {cname} at {ent.transform.position.ToString()}.");
-#endif
-                            if((ent.OwnerID.ToString() == iplayer.Id || IsFriend(player.userID, ent.OwnerID)) || iplayer.HasPermission(permCCTVAdmin))
+                            IRemoteControllable realcam = camera as IRemoteControllable;
+                            if (realcam == null) continue;
+                            BaseEntity ent = realcam.GetEnt();
+                            if (ent == null) continue;
+                            string cname = realcam.GetIdentifier();
+                            if (cname == null) continue;
+                            if (foundCameras.Contains(cname)) continue;
+                            if (configData.debug) Puts($"Found camera {cname} at {ent.transform.position.ToString()}.");
+                            if (ent.OwnerID.ToString() == iplayer.Id || IsFriend(player.userID, ent.OwnerID) || iplayer.HasPermission(permCCTVAdmin))
                             {
-                                if(station.controlBookmarks.ContainsKey(cname))
+                                if (station.controlBookmarks.Contains(cname))
                                 {
                                     Message(iplayer, "cameraexists", cname);
                                     continue;
@@ -348,21 +371,19 @@ namespace Oxide.Plugins
                                 foundCameras.Add(cname);
 
                                 string displayName = Lang("unknown");
-                                if((ent.OwnerID == 0) && (configData.blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
+                                if ((ent.OwnerID == 0) && (configData.blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
                                 {
-#if DEBUG
-                                    Puts($"Disabling server-owned camera {cname} {ent.OwnerID.ToString()}.");
-#endif
+                                    if (configData.debug) Puts($"Disabling server-owned camera {cname} {ent.OwnerID.ToString()}.");
                                     continue;
                                 }
-                                else if(ent.OwnerID == 0)
+                                else if (ent.OwnerID == 0)
                                 {
                                     displayName = Lang("server");
                                 }
                                 else
                                 {
-                                    var pl = BasePlayer.Find(ent.OwnerID.ToString());
-                                    if(pl != null) displayName = pl.displayName;
+                                    BasePlayer pl = BasePlayer.Find(ent.OwnerID.ToString());
+                                    if (pl != null) displayName = pl.displayName;
                                 }
 
                                 Message(iplayer, "foundCamera", cname, displayName);
@@ -371,7 +392,7 @@ namespace Oxide.Plugins
                         }
                         break;
                     }
-                    if(!foundS)
+                    if (!foundS)
                     {
                         Message(iplayer, "noStation");
                     }
@@ -380,7 +401,7 @@ namespace Oxide.Plugins
         }
 
         [Command("cctvlist")]
-        void cmdCCTVList(IPlayer iplayer, string command, string[] args)
+        private void cmdCCTVList(IPlayer iplayer, string command, string[] args)
         {
             List<CCTV_RC> cameras = new List<CCTV_RC>();
             List<Drone> drones = new List<Drone>();
@@ -391,35 +412,35 @@ namespace Oxide.Plugins
             Vis.Entities(Vector3.zero, mapSize, drones);
 
             msg += Lang("foundCameras") + "\n";
-            foreach (var camera in cameras)
+            foreach (CCTV_RC camera in cameras)
             {
-                var realcam = camera as IRemoteControllable;
+                IRemoteControllable realcam = camera as IRemoteControllable;
                 if (realcam == null) continue;
-                var loc = realcam.GetEyes();
-                var ent = realcam.GetEnt();
+                Transform loc = realcam.GetEyes();
+                BaseEntity ent = realcam.GetEnt();
                 if (ent == null) continue;
-                var cname = realcam.GetIdentifier();
+                string cname = realcam.GetIdentifier();
                 if (cname == null) continue;
                 if (foundCameras.Contains(cname)) continue;
                 foundCameras.Add(cname);
                 msg += cname + " @ " + loc.position.ToString() + Lang("ownedby") + ent.OwnerID.ToString() + "\n";
             }
             msg += Lang("foundDrones") + "\n";
-            foreach (var camera in drones)
+            foreach (Drone camera in drones)
             {
-                var realcam = camera as IRemoteControllable;
+                IRemoteControllable realcam = camera as IRemoteControllable;
                 if (realcam == null) continue;
-                var loc = realcam.GetEyes();
-                var ent = realcam.GetEnt();
+                Transform loc = realcam.GetEyes();
+                BaseEntity ent = realcam.GetEnt();
                 if (ent == null) continue;
-                var cname = realcam.GetIdentifier();
+                string cname = realcam.GetIdentifier();
                 if (cname == null) continue;
                 if (foundCameras.Contains(cname)) continue;
                 foundCameras.Add(cname);
                 msg += cname + " @ " + loc.position.ToString() + Lang("ownedby") + ent.OwnerID.ToString() + "\n";
             }
 
-            if ((iplayer.Object as BasePlayer) == null)
+            if (!(iplayer.Object is BasePlayer))
             {
                 Puts(msg);
             }
@@ -429,97 +450,83 @@ namespace Oxide.Plugins
             }
         }
 
-        void AddCamera(BasePlayer basePlayer, ComputerStation station, string str)
+        private void AddCamera(BasePlayer basePlayer, ComputerStation station, string str)
         {
-#if DEBUG
-            Puts($"Trying to add camera {str}");
-#endif
+            if (configData.debug) Puts($"Trying to add camera {str}");
             uint d = 0;
             BaseNetworkable baseNetworkable;
             IRemoteControllable component;
-            foreach(IRemoteControllable allControllable in RemoteControlEntity.allControllables)
+            foreach (IRemoteControllable allControllable in RemoteControlEntity.allControllables)
             {
-                var curr = allControllable.GetIdentifier();
-                if(allControllable == null)
+                string curr = allControllable.GetIdentifier();
+                if (allControllable == null)
                 {
-#if DEBUG
-                    Puts($"  skipping null camera {curr}");
-#endif
+                    if (configData.debug) Puts($"  skipping null camera {curr}");
                     continue;
                 }
-                if(curr != str) continue;
+                if (curr != str) continue;
 
-                if(allControllable.GetEnt() != null)
+                if (allControllable.GetEnt() != null)
                 {
                     d = allControllable.GetEnt().net.ID;
                     baseNetworkable = BaseNetworkable.serverEntities.Find(d);
 
-                    if(baseNetworkable == null)
+                    if (baseNetworkable == null)
                     {
-#if DEBUG
-                        Puts("  baseNetworkable null");
-#endif
+                        if (configData.debug) Puts("  baseNetworkable null");
                         return;
                     }
                     component = baseNetworkable.GetComponent<IRemoteControllable>();
-                    if(component == null)
+                    if (component == null)
                     {
-#if DEBUG
-                        Puts("  component null");
-#endif
+                        if (configData.debug) Puts("  component null");
                         return;
                     }
-                    if(str == component.GetIdentifier())
+                    if (str == component.GetIdentifier())
                     {
-#if DEBUG
-                        Puts("  adding to station...");
-#endif
-                        station.controlBookmarks.Add(str, d);
+                        if (configData.debug) Puts("  adding to station...");
+                        station.controlBookmarks.Add(str);
                     }
                     station.SendControlBookmarks(basePlayer);
                     return;
                 }
                 else
                 {
-#if DEBUG
-                    Puts("Computer station added bookmark with missing ent, likely a static CCTV (wipe the server)");
-#endif
+                    if (configData.debug) Puts("Computer station added bookmark with missing ent, likely a static CCTV (wipe the server)");
                     return;
                 }
             }
-#if DEBUG
-            Puts($"  {str} cannot be controlled.  Check power!");
-#endif
+            if (configData.debug) Puts($"  {str} cannot be controlled.  Check power!");
         }
 
         // playerid = active player, ownerid = owner of camera, who may be offline
-        bool IsFriend(ulong playerid, ulong ownerid)
+        private bool IsFriend(ulong playerid, ulong ownerid)
         {
-            if(configData.useFriends && Friends != null)
+            if (configData.useFriends && Friends != null)
             {
-                var fr = Friends?.CallHook("AreFriends", playerid, ownerid);
-                if(fr != null && (bool)fr)
+                object fr = Friends?.CallHook("AreFriends", playerid, ownerid);
+                if (fr != null && (bool)fr)
                 {
                     return true;
                 }
             }
-            if(configData.useClans && Clans != null)
+            if (configData.useClans && Clans != null)
             {
                 string playerclan = (string)Clans?.CallHook("GetClanOf", playerid);
                 string ownerclan  = (string)Clans?.CallHook("GetClanOf", ownerid);
-                if(playerclan == ownerclan && playerclan != null && ownerclan != null)
+                if (playerclan == ownerclan && playerclan != null && ownerclan != null)
                 {
                     return true;
                 }
             }
-            if(configData.useTeams)
+            if (configData.useTeams)
             {
                 BasePlayer player = BasePlayer.FindByID(playerid);
-                if(player.currentTeam != (long)0)
+                if (player.currentTeam != 0)
                 {
                     RelationshipManager.PlayerTeam playerTeam = RelationshipManager.ServerInstance.FindTeam(player.currentTeam);
-                    if(playerTeam == null) return false;
-                    if(playerTeam.members.Contains(ownerid))
+                    if (playerTeam == null) return false;
+                    if (playerTeam.members.Contains(ownerid))
                     {
                         return true;
                     }
@@ -530,41 +537,44 @@ namespace Oxide.Plugins
 
         private void OnPlayerInput(BasePlayer player, InputState input)
         {
-            if(player == null || input == null) return;
+            if (player == null || input == null) return;
 
-            if(input.IsDown(BUTTON.FORWARD) || input.IsDown(BUTTON.BACKWARD) || input.IsDown(BUTTON.LEFT) || input.IsDown(BUTTON.RIGHT))
+            if (input.IsDown(BUTTON.FORWARD) || input.IsDown(BUTTON.BACKWARD) || input.IsDown(BUTTON.LEFT) || input.IsDown(BUTTON.RIGHT))
             {
                 try
                 {
-                    var activeCamera = player.GetMounted().GetComponentInParent<ComputerStation>() ?? null;
-                    if(activeCamera != null)
+                    ComputerStation activeCamera = player.GetMounted().GetComponentInParent<ComputerStation>();
+                    if (activeCamera != null)
                     {
-                        var cctv = activeCamera.currentlyControllingEnt.Get(true).GetComponent<CCTV_RC>();
-                        if(cctv == null) return;
-                        if(cctv.IsStatic() && !player.IPlayer.HasPermission(permCCTVAdmin)) return;
+                        CCTV_RC cctv = activeCamera.currentlyControllingEnt.Get(true).GetComponent<CCTV_RC>();
+                        if (cctv == null) return;
+                        if (cctv.IsStatic() && !player.IPlayer.HasPermission(permCCTVAdmin)) return;
                         cctv.hasPTZ = true;
 
                         float x = input.IsDown(BUTTON.RIGHT) ? 1f : (input.IsDown(BUTTON.LEFT) ? -1f : 0f);
                         float y = input.IsDown(BUTTON.FORWARD) ? 1f : (input.IsDown(BUTTON.BACKWARD) ? -1f : 0f);
-#if DEBUG
-                        string lr = input.IsDown(BUTTON.RIGHT) ? "right" : (input.IsDown(BUTTON.LEFT) ? "left" : "");
-                        string ud = input.IsDown(BUTTON.FORWARD) ? "up" : (input.IsDown(BUTTON.BACKWARD) ? "down" : "");
-                        string udlr = ud + lr;
-                        Puts($"Trying to move camera {udlr}.");
-#endif
+
+                        if (configData.debug)
+                        {
+                            string lr = input.IsDown(BUTTON.RIGHT) ? "right" : (input.IsDown(BUTTON.LEFT) ? "left" : "");
+                            string ud = input.IsDown(BUTTON.FORWARD) ? "up" : (input.IsDown(BUTTON.BACKWARD) ? "down" : "");
+                            string udlr = ud + lr;
+                            Puts($"Trying to move camera {udlr}.");
+                        }
                         float speed = 0.1f;
-                        if(input.IsDown(BUTTON.SPRINT)) speed *= 3;
+                        if (input.IsDown(BUTTON.SPRINT)) speed *= 3;
 
                         InputState inputState = new InputState();
                         inputState.current.mouseDelta.y = y * speed;
                         inputState.current.mouseDelta.x = x * speed;
 
-                        cctv.UserInput(inputState, player);
+                        CameraViewerId cv = new CameraViewerId(player.userID, 0);
+                        cctv.UserInput(inputState, cv);
 
-                        if(configData.playSound)
+                        if (configData.playSound)
                         {
                             Effect effect = new Effect(moveSound, new Vector3(0, 0, 0), Vector3.forward);
-                            if(configData.playAtCamera)
+                            if (configData.playAtCamera)
                             {
                                 effect.worldPos = cctv.transform.position;
                                 effect.origin   = cctv.transform.position;
@@ -582,5 +592,30 @@ namespace Oxide.Plugins
             }
         }
         #endregion
+
+        public class MovingLight : FacepunchBehaviour
+        {
+            public CCTV_RC camera;
+            public SimpleLight light;
+
+            public void Awake()
+            {
+                camera = GetComponentInParent<CCTV_RC>();
+                light = GetComponentInParent<SimpleLight>();
+            }
+
+            public void Update()
+            {
+                if (light == null) return;
+                if (camera == null) return;
+                light.transform.localEulerAngles = new Vector3(camera.pivotOrigin.rotation.x, camera.pivotOrigin.rotation.y, camera.pivotOrigin.rotation.z);
+                //sl.transform.localEulerAngles = new Vector3(0, 0, 0);
+
+                //Vector3 vector3 = Vector3Ex.Direction(cctv.transform.position, cctv.yaw.transform.position);
+                //vector3 = cctv.transform.InverseTransformDirection(vector3);
+                //sl.transform.localRotation = Quaternion.Euler(vector3);
+                light.SendNetworkUpdateImmediate(true);// BasePlayer.NetworkQueue.Update);
+            }
+        }
     }
 }
