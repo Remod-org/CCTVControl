@@ -26,11 +26,10 @@ using System.Linq;
 using Oxide.Core.Plugins;
 using Oxide.Core.Libraries.Covalence;
 using Oxide.Core;
-using Oxide.Core.Extensions;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.12")]
+    [Info("CCTVControl", "RFC1920", "1.0.13")]
     [Description("Allows players to add CCTV cameras to a Computer Station and control them remotely")]
     internal class CCTVControl : RustPlugin
     {
@@ -468,8 +467,8 @@ namespace Oxide.Plugins
 
                 if (allControllable.GetEnt() != null)
                 {
-                    d = allControllable.GetEnt().net.ID;
-                    baseNetworkable = BaseNetworkable.serverEntities.Find(d);
+                    d = (uint)allControllable.GetEnt().net.ID.Value;
+                    baseNetworkable = BaseNetworkable.serverEntities.Find(new NetworkableId(d));
 
                     if (baseNetworkable == null)
                     {
@@ -521,15 +520,10 @@ namespace Oxide.Plugins
             }
             if (configData.useTeams)
             {
-                BasePlayer player = BasePlayer.FindByID(playerid);
-                if (player.currentTeam != 0)
+                RelationshipManager.PlayerTeam playerTeam = RelationshipManager.ServerInstance.FindPlayersTeam(playerid);
+                if (playerTeam?.members.Contains(ownerid) == true)
                 {
-                    RelationshipManager.PlayerTeam playerTeam = RelationshipManager.ServerInstance.FindTeam(player.currentTeam);
-                    if (playerTeam == null) return false;
-                    if (playerTeam.members.Contains(ownerid))
-                    {
-                        return true;
-                    }
+                    return true;
                 }
             }
             return false;
