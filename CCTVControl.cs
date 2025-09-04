@@ -20,16 +20,16 @@
     Optionally you can also view the license at <http://www.gnu.org/licenses/>.
 */
 #endregion License Information (GPL v2)
-using System.Collections.Generic;
-using UnityEngine;
-using System.Linq;
-using Oxide.Core.Plugins;
-using Oxide.Core.Libraries.Covalence;
 using Oxide.Core;
+using Oxide.Core.Libraries.Covalence;
+using Oxide.Core.Plugins;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.13")]
+    [Info("CCTVControl", "RFC1920", "1.0.14")]
     [Description("Allows players to add CCTV cameras to a Computer Station and control them remotely")]
     internal class CCTVControl : RustPlugin
     {
@@ -120,7 +120,7 @@ namespace Oxide.Plugins
         protected override void LoadDefaultConfig()
         {
             Puts("Creating new config file.");
-            ConfigData config = new ConfigData
+            ConfigData config = new()
             {
                 debug = false,
                 userRange = 200f,
@@ -172,7 +172,7 @@ namespace Oxide.Plugins
             if (station != null && (configData.blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
             {
                 if (configData.debug) Puts("OnEntityMounted: player mounted CS!");
-                List<string> toremove = new List<string>();
+                List<string> toremove = new();
                 foreach (string bm in station.controlBookmarks)
                 {
                     IRemoteControllable realcam = RemoteControlEntity.FindByID(bm);
@@ -220,15 +220,15 @@ namespace Oxide.Plugins
             if (!iplayer.HasPermission(permCCTV)) { Message(iplayer, "notauthorized"); return; }
             BasePlayer player = iplayer.Object as BasePlayer;
 
-            List<ComputerStation> stations = new List<ComputerStation>();
+            List<ComputerStation> stations = new();
             Vis.Entities(player.transform.position, 2f, stations);
             bool foundS = false;
 
-            string cmd = null;
+            string cmd;
             if (args.Length == 0) cmd = null;
             else cmd = args[0];
 
-            switch(cmd)
+            switch (cmd)
             {
                 case "clear":
                     foreach (ComputerStation station in stations)
@@ -237,21 +237,21 @@ namespace Oxide.Plugins
                         station.SendControlBookmarks(player);
                     }
                     break;
-//                case "rename":
-//                    {
-//                        List<CCTV_RC> cameras = new List<CCTV_RC>();
-//                        Vis.Entities(player.transform.position, 2f, cameras);
-//                        foreach (var cam in cameras)
-//                        {
-//                            cam.UpdateIdentifier(args[1]);
-//                            break;
-//                        }
-//                    }
-//                    break;
+                //case "rename":
+                //    {
+                //        List<CCTV_RC> cameras = new();
+                //        Vis.Entities(player.transform.position, 2f, cameras);
+                //        foreach (CCTV_RC cam in cameras)
+                //        {
+                //            cam.UpdateIdentifier(args[1]);
+                //            break;
+                //        }
+                //    }
+                //    break;
                 case "add":
                     if (args.Length > 1)
                     {
-                        List<string> cameras = new List<string>();
+                        List<string> cameras = new();
                         if (args[1].Contains(","))
                         {
                             string newargs = string.Concat(args);
@@ -283,24 +283,25 @@ namespace Oxide.Plugins
                     {
                         foundS = true;
                         Message(iplayer, "foundStation");
-                        List<Drone> drones = new List<Drone>();
+                        List<Drone> drones = new();
 
                         float range = configData.userRange;
                         if (configData.userMapWide || iplayer.HasPermission(permCCTVAdmin)) range = mapSize;
 
                         Vis.Entities(player.transform.position, range, drones, targetLayer);
-                        List<string> foundCameras = new List<string>();
+                        List<string> foundCameras = new();
 
                         foreach (Drone camera in drones)
                         {
-                            IRemoteControllable realcam = camera as IRemoteControllable;
+                            //IRemoteControllable realcam = camera as IRemoteControllable;
+                            if (camera is not IRemoteControllable realcam) continue;
                             if (realcam == null) continue;
                             BaseEntity ent = realcam.GetEnt();
                             if (ent == null) continue;
                             string cname = realcam.GetIdentifier();
                             if (cname == null) continue;
                             if (foundCameras.Contains(cname)) continue;
-                            if (configData.debug) Puts($"Found drone {cname} at {ent.transform.position.ToString()}.");
+                            if (configData.debug) Puts($"Found drone {cname} at {ent.transform.position}.");
                             if (ent.OwnerID.ToString() == iplayer.Id || IsFriend(player.userID, ent.OwnerID) || iplayer.HasPermission(permCCTVAdmin))
                             {
                                 if (station.controlBookmarks.Contains(cname))
@@ -313,7 +314,7 @@ namespace Oxide.Plugins
                                 string displayName = Lang("unknown");
                                 if ((ent.OwnerID == 0) && (configData.blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
                                 {
-                                    if (configData.debug) Puts($"Disabling server-owned drone {cname} {ent.OwnerID.ToString()}.");
+                                    if (configData.debug) Puts($"Disabling server-owned drone {cname} {ent.OwnerID}.");
                                     continue;
                                 }
                                 else if (ent.OwnerID == 0)
@@ -342,24 +343,25 @@ namespace Oxide.Plugins
                     {
                         foundS = true;
                         Message(iplayer, "foundStation");
-                        List<CCTV_RC> cameras = new List<CCTV_RC>();
+                        List<CCTV_RC> cameras = new();
 
                         float range = configData.userRange;
                         if (configData.userMapWide || iplayer.HasPermission(permCCTVAdmin)) range = mapSize;
 
                         Vis.Entities(player.transform.position, range, cameras, targetLayer);
-                        List<string> foundCameras = new List<string>();
-                        if (configData.debug) Puts($"Searching for cameras over a {range.ToString()}m radius.");
+                        List<string> foundCameras = new();
+                        if (configData.debug) Puts($"Searching for cameras over a {range}m radius.");
                         foreach (CCTV_RC camera in cameras)
                         {
-                            IRemoteControllable realcam = camera as IRemoteControllable;
+                            //IRemoteControllable realcam = camera as IRemoteControllable;
+                            if (camera is not IRemoteControllable realcam) continue;
                             if (realcam == null) continue;
                             BaseEntity ent = realcam.GetEnt();
                             if (ent == null) continue;
                             string cname = realcam.GetIdentifier();
                             if (cname == null) continue;
                             if (foundCameras.Contains(cname)) continue;
-                            if (configData.debug) Puts($"Found camera {cname} at {ent.transform.position.ToString()}.");
+                            if (configData.debug) Puts($"Found camera {cname} at {ent.transform.position}.");
                             if (ent.OwnerID.ToString() == iplayer.Id || IsFriend(player.userID, ent.OwnerID) || iplayer.HasPermission(permCCTVAdmin))
                             {
                                 if (station.controlBookmarks.Contains(cname))
@@ -372,7 +374,7 @@ namespace Oxide.Plugins
                                 string displayName = Lang("unknown");
                                 if ((ent.OwnerID == 0) && (configData.blockServerCams && !player.IPlayer.HasPermission(permCCTVAdmin)))
                                 {
-                                    if (configData.debug) Puts($"Disabling server-owned camera {cname} {ent.OwnerID.ToString()}.");
+                                    if (configData.debug) Puts($"Disabling server-owned camera {cname} {ent.OwnerID}.");
                                     continue;
                                 }
                                 else if (ent.OwnerID == 0)
@@ -402,9 +404,9 @@ namespace Oxide.Plugins
         [Command("cctvlist")]
         private void cmdCCTVList(IPlayer iplayer, string command, string[] args)
         {
-            List<CCTV_RC> cameras = new List<CCTV_RC>();
-            List<Drone> drones = new List<Drone>();
-            List<string> foundCameras = new List<string>();
+            List<CCTV_RC> cameras = new();
+            List<Drone> drones = new();
+            List<string> foundCameras = new();
             string msg = null;
 
             Vis.Entities(Vector3.zero, mapSize, cameras);
@@ -413,7 +415,8 @@ namespace Oxide.Plugins
             msg += Lang("foundCameras") + "\n";
             foreach (CCTV_RC camera in cameras)
             {
-                IRemoteControllable realcam = camera as IRemoteControllable;
+                //IRemoteControllable realcam = camera as IRemoteControllable;
+                if (camera is not IRemoteControllable realcam) continue;
                 if (realcam == null) continue;
                 Transform loc = realcam.GetEyes();
                 BaseEntity ent = realcam.GetEnt();
@@ -427,7 +430,8 @@ namespace Oxide.Plugins
             msg += Lang("foundDrones") + "\n";
             foreach (Drone camera in drones)
             {
-                IRemoteControllable realcam = camera as IRemoteControllable;
+                //IRemoteControllable realcam = camera as IRemoteControllable;
+                if (camera is not IRemoteControllable realcam) continue;
                 if (realcam == null) continue;
                 Transform loc = realcam.GetEyes();
                 BaseEntity ent = realcam.GetEnt();
@@ -512,7 +516,7 @@ namespace Oxide.Plugins
             if (configData.useClans && Clans != null)
             {
                 string playerclan = (string)Clans?.CallHook("GetClanOf", playerid);
-                string ownerclan  = (string)Clans?.CallHook("GetClanOf", ownerid);
+                string ownerclan = (string)Clans?.CallHook("GetClanOf", ownerid);
                 if (playerclan == ownerclan && playerclan != null && ownerclan != null)
                 {
                     return true;
@@ -558,31 +562,31 @@ namespace Oxide.Plugins
                         float speed = 0.1f;
                         if (input.IsDown(BUTTON.SPRINT)) speed *= 3;
 
-                        InputState inputState = new InputState();
+                        InputState inputState = new();
                         inputState.current.mouseDelta.y = y * speed;
                         inputState.current.mouseDelta.x = x * speed;
 
-                        CameraViewerId cv = new CameraViewerId(player.userID, 0);
+                        CameraViewerId cv = new(player.userID, 0);
                         cctv.UserInput(inputState, cv);
 
                         if (configData.playSound)
                         {
-                            Effect effect = new Effect(moveSound, new Vector3(0, 0, 0), Vector3.forward);
+                            Effect effect = new(moveSound, new Vector3(0, 0, 0), Vector3.forward);
                             if (configData.playAtCamera)
                             {
                                 effect.worldPos = cctv.transform.position;
-                                effect.origin   = cctv.transform.position;
+                                effect.origin = cctv.transform.position;
                             }
                             else
                             {
                                 effect.worldPos = player.transform.position;
-                                effect.origin   = player.transform.position;
+                                effect.origin = player.transform.position;
                             }
                             EffectNetwork.Send(effect);
                         }
                     }
                 }
-                catch {}
+                catch { }
             }
         }
         #endregion
@@ -608,7 +612,7 @@ namespace Oxide.Plugins
                 //Vector3 vector3 = Vector3Ex.Direction(cctv.transform.position, cctv.yaw.transform.position);
                 //vector3 = cctv.transform.InverseTransformDirection(vector3);
                 //sl.transform.localRotation = Quaternion.Euler(vector3);
-                light.SendNetworkUpdateImmediate(true);// BasePlayer.NetworkQueue.Update);
+                light.SendNetworkUpdateImmediate();// BasePlayer.NetworkQueue.Update);
             }
         }
     }
