@@ -29,7 +29,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("CCTVControl", "RFC1920", "1.0.14")]
+    [Info("CCTVControl", "RFC1920", "1.0.15")]
     [Description("Allows players to add CCTV cameras to a Computer Station and control them remotely")]
     internal class CCTVControl : RustPlugin
     {
@@ -63,7 +63,7 @@ namespace Oxide.Plugins
 
         private void DestroyAll<T>()
         {
-            Object[] objects = UnityEngine.Object.FindObjectsOfType(typeof(T));
+            Object[] objects = UnityEngine.Object.FindObjectsByType(typeof(T), FindObjectsSortMode.None);
             if (objects != null)
             {
                 foreach (Object gameObj in objects)
